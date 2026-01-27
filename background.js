@@ -9,6 +9,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ success: false, error: error.message });
     });
     return true; // Keep channel open for async
+  } else if (request.action === 'removeCompletedEvents') {
+    removeCompletedEvents().then(result => {
+      sendResponse(result);
+    }).catch(error => {
+      console.error('[Background] Remove completed error:', error);
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
   }
 });
 
@@ -25,20 +33,77 @@ chrome.downloads.onChanged.addListener((downloadDelta) => {
   }
 });
 
+// Validate that an event has required fields and is not blank
+function isValidEvent(exam) {
+  if (!exam) return false;
+  
+  // Must have a valid date
+  const examDate = new Date(exam.date);
+  if (isNaN(examDate.getTime())) {
+    return false;
+  }
+  
+  // Must have a course name (non-empty string)
+  if (!exam.course || typeof exam.course !== 'string' || exam.course.trim().length === 0) {
+    return false;
+  }
+  
+  // At minimum, we need a non-empty course name
+  const course = exam.course.trim();
+  if (course.length === 0) {
+    return false;
+  }
+  
+  return true;
+}
+
+// Filter out invalid/blank events
+function filterValidEvents(examDates) {
+  if (!examDates || !Array.isArray(examDates)) {
+    return [];
+  }
+  
+  const valid = examDates.filter(exam => {
+    const isValid = isValidEvent(exam);
+    if (!isValid) {
+      console.log('[Validation] Filtered out invalid/blank event:', exam);
+    }
+    return isValid;
+  });
+  
+  const filtered = examDates.length - valid.length;
+  if (filtered > 0) {
+    console.log(`[Validation] Filtered out ${filtered} invalid/blank event(s)`);
+  }
+  
+  return valid;
+}
+
 async function syncToCalendar(examDates) {
   if (!examDates || examDates.length === 0) {
     return { success: false, error: 'No exam dates to sync' };
   }
   
+  // Filter out blank/invalid events before syncing
+  const validDates = filterValidEvents(examDates);
+  
+  if (validDates.length === 0) {
+    return { success: false, error: 'No valid events to sync (all events were blank or invalid)' };
+  }
+  
+  if (validDates.length < examDates.length) {
+    console.log(`[Validation] Syncing ${validDates.length} valid events (filtered ${examDates.length - validDates.length} invalid)`);
+  }
+  
   const { calendarType } = await chrome.storage.sync.get('calendarType');
   
   if (calendarType === 'google') {
-    return await syncToGoogleCalendar(examDates);
+    return await syncToGoogleCalendar(validDates);
   } else if (calendarType === 'apple') {
-    return await syncToAppleCalendar(examDates);
+    return await syncToAppleCalendar(validDates);
   } else {
     // Default to Apple (iCal export) if not set
-    return await syncToAppleCalendar(examDates);
+    return await syncToAppleCalendar(validDates);
   }
 }
 
@@ -53,6 +118,11 @@ async function syncToGoogleCalendar(examDates) {
     
     let added = 0;
     let errors = [];
+    const eventIds = []; // Store event IDs for tracking
+    
+    // Load existing event mappings
+    const stored = await chrome.storage.local.get('googleCalendarEvents');
+    const eventMap = stored.googleCalendarEvents || {}; // Maps assignmentId+courseId to eventId
     
     for (const exam of examDates) {
       try {
@@ -61,6 +131,16 @@ async function syncToGoogleCalendar(examDates) {
         // Skip if date is invalid
         if (isNaN(examDate.getTime())) {
           errors.push(`${exam.course}: Invalid date`);
+          continue;
+        }
+        
+        // Check if we already created this event (by assignment ID)
+        const eventKey = exam.assignmentId && exam.courseId 
+          ? `${exam.courseId}-${exam.assignmentId}` 
+          : null;
+        
+        if (eventKey && eventMap[eventKey]) {
+          console.log(`[Google Calendar] Event already exists for ${exam.course} - ${exam.title}, skipping`);
           continue;
         }
         
@@ -96,7 +176,14 @@ async function syncToGoogleCalendar(examDates) {
         });
         
         if (response.ok) {
+          const eventData = await response.json();
           added++;
+          
+          // Store event ID if we have assignment tracking info
+          if (eventKey && eventData.id) {
+            eventMap[eventKey] = eventData.id;
+            eventIds.push(eventData.id);
+          }
         } else {
           const errorData = await response.json().catch(() => ({}));
           errors.push(`${exam.course}: ${errorData.error?.message || response.statusText || 'Unknown error'}`);
@@ -104,6 +191,11 @@ async function syncToGoogleCalendar(examDates) {
       } catch (error) {
         errors.push(`${exam.course}: ${error.message}`);
       }
+    }
+    
+    // Save updated event mappings
+    if (eventIds.length > 0) {
+      await chrome.storage.local.set({ googleCalendarEvents: eventMap });
     }
     
     if (added > 0) {
@@ -243,4 +335,37 @@ async function getGoogleAuthToken() {
       }
     );
   });
+}
+
+// Remove completed assignments from Google Calendar
+async function removeCompletedEvents() {
+  try {
+    const token = await getGoogleAuthToken();
+    if (!token) {
+      return { success: false, error: 'Failed to authenticate with Google Calendar' };
+    }
+    
+    // Get stored event mappings
+    const stored = await chrome.storage.local.get('googleCalendarEvents');
+    const eventMap = stored.googleCalendarEvents || {};
+    
+    if (Object.keys(eventMap).length === 0) {
+      return { success: true, removed: 0, message: 'No tracked events found' };
+    }
+    
+    let removed = 0;
+    const remainingEvents = {};
+    
+    // Check each event - we'll need to verify from Canvas if assignment is completed
+    // For now, we'll provide a way to manually clean up
+    // In a full implementation, we'd check Canvas API here
+    
+    return {
+      success: true,
+      removed,
+      message: `Note: Automatic removal requires checking Canvas API. Use "Extract Important Dates" again to filter out completed assignments before syncing.`
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }

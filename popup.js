@@ -8,11 +8,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   const courseList = document.getElementById('courseList');
   const examPreview = document.getElementById('examPreview');
   const previewSection = document.getElementById('previewSection');
+  const listViewBtn = document.getElementById('listViewBtn');
+  const calendarViewBtn = document.getElementById('calendarViewBtn');
+  const listView = document.getElementById('listView');
+  const calendarView = document.getElementById('calendarView');
+  const calendarGrid = document.getElementById('calendarGrid');
+  const calendarMonthYear = document.getElementById('calendarMonthYear');
+  const prevMonthBtn = document.getElementById('prevMonthBtn');
+  const nextMonthBtn = document.getElementById('nextMonthBtn');
+  const todayBtn = document.getElementById('todayBtn');
+  const dayModal = document.getElementById('dayModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalEvents = document.getElementById('modalEvents');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
   
   let courses = [];
   let importantDates = [];
   let editingIndex = null;
   let showPreview = true; // Default to showing preview
+  let currentCalendarDate = new Date(); // Current month being viewed
+  let currentView = 'list'; // 'list' or 'calendar'
+  
+  // Modal handlers
+  modalCloseBtn.addEventListener('click', () => {
+    dayModal.classList.remove('active');
+  });
+  
+  dayModal.addEventListener('click', (e) => {
+    if (e.target === dayModal) {
+      dayModal.classList.remove('active');
+    }
+  });
+  
+  // Close modal on Escape key
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dayModal.classList.contains('active')) {
+      dayModal.classList.remove('active');
+    }
+  });
   
   // Load preview preference
   chrome.storage.sync.get('showPreview', (result) => {
@@ -169,6 +202,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           if (shouldShowPreview) {
             displayExamPreview();
+            if (currentView === 'calendar') {
+              renderCalendar();
+            }
             previewSection.style.display = 'block';
           } else {
             previewSection.style.display = 'none';
@@ -222,7 +258,303 @@ document.addEventListener('DOMContentLoaded', async () => {
     importantDates.push(newDate);
     editingIndex = importantDates.length - 1;
     displayExamPreview();
+    if (currentView === 'calendar') {
+      renderCalendar();
+    }
   });
+  
+  // View toggle handlers
+  listViewBtn.addEventListener('click', () => {
+    currentView = 'list';
+    listViewBtn.classList.add('active');
+    calendarViewBtn.classList.remove('active');
+    listView.classList.add('active');
+    calendarView.classList.remove('active');
+  });
+  
+  calendarViewBtn.addEventListener('click', () => {
+    currentView = 'calendar';
+    calendarViewBtn.classList.add('active');
+    listViewBtn.classList.remove('active');
+    calendarView.classList.add('active');
+    listView.classList.remove('active');
+    renderCalendar();
+  });
+  
+  // Calendar navigation
+  prevMonthBtn.addEventListener('click', () => {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+    renderCalendar();
+  });
+  
+  nextMonthBtn.addEventListener('click', () => {
+    currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+    renderCalendar();
+  });
+  
+  todayBtn.addEventListener('click', () => {
+    currentCalendarDate = new Date();
+    renderCalendar();
+  });
+  
+  // Set up calendar day click handler (event delegation - only once)
+  calendarGrid.addEventListener('click', (e) => {
+    const dayElement = e.target.closest('.calendar-day');
+    if (dayElement && !dayElement.classList.contains('other-month')) {
+      const year = parseInt(dayElement.dataset.year);
+      const month = parseInt(dayElement.dataset.month);
+      const day = parseInt(dayElement.dataset.day);
+      if (year && month !== undefined && day) {
+        openDayModal(year, month, day);
+      }
+    }
+  });
+  
+  // Set up modal event handlers (event delegation - only once)
+  modalEvents.addEventListener('click', (e) => {
+    if (e.target.classList.contains('modal-edit-btn')) {
+      const index = parseInt(e.target.dataset.eventIndex);
+      editEventFromModal(index);
+    } else if (e.target.classList.contains('modal-delete-btn')) {
+      const index = parseInt(e.target.dataset.eventIndex);
+      deleteEventFromModal(index);
+    }
+  });
+  
+  // Set up exam preview event handlers (event delegation - only once)
+  examPreview.addEventListener('click', (e) => {
+    if (e.target.classList.contains('exam-edit-btn')) {
+      const index = parseInt(e.target.dataset.examIndex);
+      editExam(index);
+    } else if (e.target.classList.contains('exam-delete-btn')) {
+      const index = parseInt(e.target.dataset.examIndex);
+      deleteExam(index);
+    } else if (e.target.classList.contains('exam-save-btn')) {
+      const index = parseInt(e.target.dataset.examIndex);
+      saveExam(index);
+    } else if (e.target.classList.contains('exam-cancel-btn')) {
+      cancelEdit();
+    }
+  });
+  
+  // Render calendar view
+  function renderCalendar() {
+    const year = currentCalendarDate.getFullYear();
+    const month = currentCalendarDate.getMonth();
+    
+    // Update month/year display
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    calendarMonthYear.textContent = `${monthNames[month]} ${year}`;
+    
+    // Get first day of month and number of days
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+    
+    // Get today's date for highlighting
+    const today = new Date();
+    const isTodayMonth = today.getMonth() === month && today.getFullYear() === year;
+    
+    // Group events by date
+    const eventsByDate = {};
+    importantDates.forEach((event, index) => {
+      const eventDate = new Date(event.date);
+      const dateKey = `${eventDate.getFullYear()}-${eventDate.getMonth()}-${eventDate.getDate()}`;
+      if (!eventsByDate[dateKey]) {
+        eventsByDate[dateKey] = [];
+      }
+      eventsByDate[dateKey].push({ ...event, index });
+    });
+    
+    // Build calendar grid
+    let html = '';
+    
+    // Day headers
+    const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    dayHeaders.forEach(day => {
+      html += `<div class="calendar-day-header">${day}</div>`;
+    });
+    
+    // Empty cells for days before month starts
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      html += `<div class="calendar-day other-month"></div>`;
+    }
+    
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dateKey = `${year}-${month}-${day}`;
+      const dayEvents = eventsByDate[dateKey] || [];
+      const isToday = isTodayMonth && day === today.getDate();
+      
+      let dayClass = 'calendar-day';
+      if (isToday) {
+        dayClass += ' today';
+      }
+      
+      html += `<div class="${dayClass}" data-date="${dateKey}" data-year="${year}" data-month="${month}" data-day="${day}">`;
+      html += `<div class="calendar-day-number">${day}</div>`;
+      html += `<div class="calendar-day-events">`;
+      
+      // Show up to 4 events, then "more"
+      const maxVisible = 4;
+      const visibleEvents = dayEvents.slice(0, maxVisible);
+      
+      visibleEvents.forEach(event => {
+        const eventDate = new Date(event.date);
+        const timeStr = eventDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true
+        });
+        const title = escapeHtml(event.title || 'Important Date');
+        const course = escapeHtml(event.course);
+        const fullTitle = title.length > 25 ? title.substring(0, 22) + '...' : title;
+        
+        html += `<div class="calendar-event" title="${course} - ${title} at ${timeStr}">
+          <span class="calendar-event-time">${timeStr}</span>${fullTitle}
+        </div>`;
+      });
+      
+      if (dayEvents.length > maxVisible) {
+        html += `<div class="calendar-event-more" title="Click to see all ${dayEvents.length} events">+${dayEvents.length - maxVisible} more</div>`;
+      }
+      
+      if (dayEvents.length === 0) {
+        html += `<div style="flex: 1; min-height: 20px;"></div>`;
+      }
+      
+      html += `</div></div>`;
+    }
+    
+    // Fill remaining cells to complete the grid (next month's days)
+    const totalCells = startingDayOfWeek + daysInMonth;
+    const remainingCells = 42 - totalCells; // 6 rows * 7 days
+    for (let i = 0; i < remainingCells && i < 7; i++) {
+      html += `<div class="calendar-day other-month"></div>`;
+    }
+    
+    calendarGrid.innerHTML = html;
+  }
+  
+  // Open modal for a specific day
+  function openDayModal(year, month, day) {
+    const date = new Date(year, month, day);
+    const dateKey = `${year}-${month}-${day}`;
+    
+    // Find all events for this day
+    const dayEvents = importantDates
+      .map((event, index) => {
+        const eventDate = new Date(event.date);
+        if (eventDate.getFullYear() === year && 
+            eventDate.getMonth() === month && 
+            eventDate.getDate() === day) {
+          return { ...event, index };
+        }
+        return null;
+      })
+      .filter(event => event !== null)
+      .sort((a, b) => {
+        const timeA = new Date(a.date).getTime();
+        const timeB = new Date(b.date).getTime();
+        return timeA - timeB;
+      });
+    
+    // Update modal title
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'];
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[date.getDay()];
+    modalTitle.textContent = `${dayName}, ${monthNames[month]} ${day}, ${year}`;
+    
+    // Display events
+    if (dayEvents.length === 0) {
+      modalEvents.innerHTML = '<div class="modal-empty">No events scheduled for this day</div>';
+    } else {
+      modalEvents.innerHTML = dayEvents.map(event => {
+        const eventDate = new Date(event.date);
+        const timeStr = eventDate.toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit' 
+        });
+        const dateStr = eventDate.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+        
+        return `
+          <div class="modal-event-item">
+            <div class="modal-event-course">${escapeHtml(event.course)}</div>
+            <div class="modal-event-title">${escapeHtml(event.title || 'Important Date')}</div>
+            <div class="modal-event-time">${dateStr} at ${timeStr}</div>
+            ${event.description ? `<div class="modal-event-description">${escapeHtml(event.description.substring(0, 150))}${event.description.length > 150 ? '...' : ''}</div>` : ''}
+            <div class="modal-event-actions">
+              <button class="btn-small modal-edit-btn" data-event-index="${event.index}">Edit</button>
+              <button class="btn-small delete modal-delete-btn" data-event-index="${event.index}">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Show modal
+    dayModal.classList.add('active');
+  }
+  
+  // Edit event from modal
+  function editEventFromModal(index) {
+    dayModal.classList.remove('active');
+    currentView = 'list';
+    listViewBtn.classList.add('active');
+    calendarViewBtn.classList.remove('active');
+    listView.classList.add('active');
+    calendarView.classList.remove('active');
+    editingIndex = index;
+    displayExamPreview();
+    // Scroll to the event
+    setTimeout(() => {
+      const eventElement = document.querySelector(`.exam-item:nth-child(${index + 1})`);
+      if (eventElement) {
+        eventElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+  
+  // Delete event from modal
+  function deleteEventFromModal(index) {
+    if (confirm('Are you sure you want to delete this event?')) {
+      importantDates.splice(index, 1);
+      if (editingIndex === index) {
+        editingIndex = null;
+      } else if (editingIndex > index) {
+        editingIndex--;
+      }
+      
+      // Re-open modal with updated events
+      const eventDate = new Date(importantDates[index]?.date || new Date());
+      if (importantDates.length > 0 && index < importantDates.length) {
+        // If there are still events, update the modal
+        const date = new Date(eventDate);
+        window.openDayModal(date.getFullYear(), date.getMonth(), date.getDate());
+      } else {
+        // Close modal if no events left
+        dayModal.classList.remove('active');
+      }
+      
+      displayExamPreview();
+      if (currentView === 'calendar') {
+        renderCalendar();
+      }
+      if (importantDates.length === 0) {
+        syncBtn.disabled = true;
+        previewSection.style.display = 'none';
+      }
+    }
+  };
   
   function displayCourses(courses) {
     if (courses.length === 0) {
@@ -278,8 +610,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               <textarea id="edit-desc-${index}">${escapeHtml(dateItem.description || '')}</textarea>
             </div>
             <div class="save-cancel-buttons">
-              <button class="btn-small save" onclick="saveExam(${index})">Save</button>
-              <button class="btn-small cancel" onclick="cancelEdit()">Cancel</button>
+              <button class="btn-small save exam-save-btn" data-exam-index="${index}">Save</button>
+              <button class="btn-small cancel exam-cancel-btn">Cancel</button>
             </div>
           </div>
         `;
@@ -296,8 +628,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
               </div>
               <div class="exam-actions">
-                <button class="btn-small" onclick="editExam(${index})">Edit</button>
-                <button class="btn-small delete" onclick="deleteExam(${index})">Delete</button>
+                <button class="btn-small exam-edit-btn" data-exam-index="${index}">Edit</button>
+                <button class="btn-small delete exam-delete-btn" data-exam-index="${index}">Delete</button>
               </div>
             </div>
           </div>
@@ -306,13 +638,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
   }
   
-  // Make functions available globally for onclick handlers
-  window.editExam = (index) => {
+  // Edit exam
+  function editExam(index) {
     editingIndex = index;
     displayExamPreview();
   };
   
-  window.deleteExam = (index) => {
+  function deleteExam(index) {
     if (confirm('Are you sure you want to delete this date?')) {
       importantDates.splice(index, 1);
       if (editingIndex === index) {
@@ -321,6 +653,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         editingIndex--;
       }
       displayExamPreview();
+      if (currentView === 'calendar') {
+        renderCalendar();
+      }
       if (importantDates.length === 0) {
         syncBtn.disabled = true;
         previewSection.style.display = 'none';
@@ -328,7 +663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
   
-  window.saveExam = (index) => {
+  function saveExam(index) {
     const course = document.getElementById(`edit-course-${index}`).value.trim();
     const title = document.getElementById(`edit-title-${index}`).value.trim();
     const dateTime = document.getElementById(`edit-date-${index}`).value;
@@ -358,11 +693,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     editingIndex = null;
     displayExamPreview();
+    if (currentView === 'calendar') {
+      renderCalendar();
+    }
     showStatus('Date updated', 'success');
     setTimeout(hideStatus, 2000);
   };
   
-  window.cancelEdit = () => {
+  function cancelEdit() {
     editingIndex = null;
     displayExamPreview();
   };

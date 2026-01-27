@@ -221,6 +221,292 @@
       color: #999;
       font-style: italic;
     }
+    
+    /* Calendar View Styles */
+    .view-toggle {
+      display: flex;
+      gap: 5px;
+      margin: 10px 0;
+      justify-content: center;
+    }
+    .view-toggle button {
+      padding: 6px 12px;
+      font-size: 12px;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .view-toggle button.active {
+      background: #0374b5;
+      color: white;
+      border-color: #0374b5;
+    }
+    .view-toggle button:hover {
+      background: #f0f0f0;
+    }
+    .view-toggle button.active:hover {
+      background: #025a8a;
+    }
+    
+    .calendar-view {
+      display: none;
+    }
+    .calendar-view.active {
+      display: block;
+    }
+    
+    .calendar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 15px 0;
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .calendar-nav {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .calendar-nav button {
+      padding: 5px 10px;
+      border: 1px solid #ddd;
+      background: white;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 12px;
+    }
+    .calendar-nav button:hover {
+      background: #f0f0f0;
+    }
+    .calendar-month-year {
+      font-weight: 600;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+      margin-top: 10px;
+      border: 1px solid #e0e0e0;
+      background: #e0e0e0;
+    }
+    .calendar-day-header {
+      padding: 10px 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 12px;
+      color: #666;
+      background: #f8f9fa;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .calendar-day {
+      min-height: 100px;
+      padding: 6px 4px;
+      border: 1px solid #e0e0e0;
+      background: white;
+      position: relative;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.2s;
+    }
+    .calendar-day:hover {
+      background: #f5f5f5;
+    }
+    .calendar-day.other-month {
+      background: #fafafa;
+      color: #999;
+    }
+    .calendar-day.today {
+      background: #e3f2fd;
+      border-color: #0374b5;
+      border-width: 2px;
+    }
+    .calendar-day.today .calendar-day-number {
+      color: #0374b5;
+      font-weight: 700;
+    }
+    .calendar-day-number {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #333;
+      line-height: 1.2;
+    }
+    .calendar-day.other-month .calendar-day-number {
+      color: #999;
+    }
+    .calendar-day-events {
+      font-size: 10px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-height: 0;
+    }
+    .calendar-event {
+      padding: 4px 6px;
+      background: #0374b5;
+      color: white;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+      cursor: pointer;
+      position: relative;
+      padding-left: 20px;
+    }
+    .calendar-event::before {
+      content: '';
+      position: absolute;
+      left: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 4px;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 2px;
+    }
+    .calendar-event:hover {
+      background: #025a8a;
+    }
+    .calendar-event-time {
+      font-size: 9px;
+      opacity: 0.9;
+      margin-right: 4px;
+    }
+    .calendar-event-more {
+      font-size: 10px;
+      color: #666;
+      padding: 4px;
+      font-style: italic;
+      text-align: center;
+      cursor: pointer;
+    }
+    .calendar-event-more:hover {
+      color: #0374b5;
+      text-decoration: underline;
+    }
+    
+    /* Modal Styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active {
+      display: flex;
+    }
+    .modal {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #666;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    .modal-close:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .modal-events {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-event-item {
+      padding: 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      background: #f9f9f9;
+    }
+    .modal-event-item:hover {
+      background: #f0f0f0;
+      border-color: #0374b5;
+    }
+    .modal-event-course {
+      font-weight: 600;
+      color: #0374b5;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .modal-event-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .modal-event-time {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .modal-event-description {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .modal-event-actions {
+      display: flex;
+      gap: 5px;
+      margin-top: 8px;
+    }
+    .modal-empty {
+      text-align: center;
+      padding: 30px;
+      color: #999;
+      font-style: italic;
+    }
+    
+    .list-view {
+      display: none;
+    }
+    .list-view.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -240,9 +526,39 @@
   
   <div id="previewSection">
     <div class="section-title">Review & Edit Important Dates:</div>
-    <div id="examPreview"></div>
-    <button id="addExamBtn" class="button secondary">+ Add Manual Date</button>
-  </div>
+    <div class="view-toggle">
+      <button id="listViewBtn" class="active">📋 List View</button>
+      <button id="calendarViewBtn">📅 Calendar View</button>
+    </div>
+    
+    <div id="listView" class="list-view active">
+      <div id="examPreview"></div>
+      <button id="addExamBtn" class="button secondary">+ Add Manual Date</button>
+    </div>
+    
+      <div id="calendarView" class="calendar-view">
+        <div class="calendar-header">
+          <div class="calendar-nav">
+            <button id="prevMonthBtn">‹</button>
+            <button id="todayBtn">Today</button>
+            <button id="nextMonthBtn">›</button>
+          </div>
+          <div class="calendar-month-year" id="calendarMonthYear"></div>
+        </div>
+        <div id="calendarGrid"></div>
+      </div>
+    </div>
+    
+    <!-- Day Events Modal -->
+    <div id="dayModal" class="modal-overlay">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title" id="modalTitle">Events</div>
+          <button class="modal-close" id="modalCloseBtn">&times;</button>
+        </div>
+        <div class="modal-events" id="modalEvents"></div>
+      </div>
+    </div>
   
   <button id="syncBtn" class="button" disabled>
     <span id="syncBtnText">3. Sync to Calendar</span>

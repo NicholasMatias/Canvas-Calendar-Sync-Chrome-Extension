@@ -68,10 +68,7 @@ function isCanvasInstance() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Validate we're on a Canvas page
   if (!isCanvasInstance()) {
-    sendResponse({ 
-      success: false, 
-      error: 'This extension only works on Canvas pages. Please navigate to your Canvas website (e.g., canvas.tamu.edu).' 
-    });
+    sendResponse({ success: false, error: 'Not on a Canvas page' });
     return true;
   }
   
@@ -81,7 +78,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch(error => {
       sendResponse({ success: false, error: error.message });
     });
-    return true; // Keep channel open for async response
+    return true; // Keep channel open for async
   }
   
   if (request.action === 'extractImportantDates') {
@@ -90,16 +87,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }).catch(error => {
       sendResponse({ success: false, error: error.message });
     });
-    return true;
+    return true; // Keep channel open for async
   }
 });
 
 async function scanCourses() {
   const courses = [];
-  const courseSet = new Set();
   
-  // Method 1: Try Canvas API first (works if user is logged in)
   try {
+    // Try Canvas API first
     const apiUrl = `${window.location.origin}/api/v1/users/self/courses?enrollment_state=active&per_page=100`;
     const response = await fetch(apiUrl, {
       credentials: 'include',
@@ -111,68 +107,39 @@ async function scanCourses() {
     if (response.ok) {
       const apiCourses = await response.json();
       apiCourses.forEach(course => {
-        if (course.id && !courseSet.has(course.id.toString())) {
-          courseSet.add(course.id.toString());
+        courses.push({
+          id: course.id,
+          name: course.name || course.course_code || 'Unnamed Course',
+          url: `${window.location.origin}/courses/${course.id}`
+        });
+      });
+      console.log(`Found ${courses.length} courses via API`);
+    } else {
+      throw new Error(`API returned ${response.status}`);
+    }
+  } catch (error) {
+    console.log('API method failed, trying DOM scraping:', error.message);
+    
+    // Fallback: DOM scraping
+    const courseLinks = document.querySelectorAll('a[href*="/courses/"]');
+    const seen = new Set();
+    
+    courseLinks.forEach(link => {
+      const href = link.href;
+      const match = href.match(/\/courses\/(\d+)/);
+      if (match) {
+        const courseId = match[1];
+        if (!seen.has(courseId)) {
+          seen.add(courseId);
+          const courseName = link.textContent.trim() || link.querySelector('.course-name')?.textContent?.trim() || 'Unnamed Course';
           courses.push({
-            id: course.id.toString(),
-            name: course.name || course.course_code || 'Unnamed Course',
-            url: `${window.location.origin}/courses/${course.id}`,
-            code: course.course_code
+            id: courseId,
+            name: courseName,
+            url: window.location.href.split('/').slice(0, -1).join('/')
           });
         }
-      });
-      
-      if (courses.length > 0) {
-        console.log(`Found ${courses.length} courses via API`);
-        return courses;
       }
-    }
-  } catch (e) {
-    console.log('API method failed, trying DOM scraping:', e);
-  }
-  
-  // Method 2: DOM scraping from dashboard
-  const courseLinks = document.querySelectorAll('a[href*="/courses/"]');
-  
-  courseLinks.forEach(link => {
-    const href = link.getAttribute('href');
-    const match = href.match(/\/courses\/(\d+)/);
-    if (match) {
-      const courseId = match[1];
-      if (!courseSet.has(courseId)) {
-        courseSet.add(courseId);
-        
-        // Try to get course name from various possible locations
-        let courseName = link.textContent.trim();
-        if (!courseName || courseName.length < 2) {
-          courseName = link.querySelector('.name')?.textContent.trim() ||
-                       link.querySelector('[class*="course"]')?.textContent.trim() ||
-                       link.getAttribute('title') ||
-                       'Unnamed Course';
-        }
-        
-        courses.push({
-          id: courseId,
-          name: courseName,
-          url: href.startsWith('http') ? href : window.location.origin + href
-        });
-      }
-    }
-  });
-  
-  // Method 3: Check if we're on a course page and extract current course
-  if (courses.length === 0) {
-    const courseMatch = window.location.pathname.match(/\/courses\/(\d+)/);
-    if (courseMatch) {
-      const courseId = courseMatch[1];
-      const courseName = document.querySelector('h1, .course-title, [class*="course-name"]')?.textContent.trim() || 
-                         'Current Course';
-      courses.push({
-        id: courseId,
-        name: courseName,
-        url: window.location.href.split('/').slice(0, -1).join('/')
-      });
-    }
+    });
   }
   
   console.log(`Found ${courses.length} courses total`);
@@ -255,7 +222,36 @@ async function fetchAssignmentsFromAPI(course) {
         return [];
       }
       
+      // Fetch submission status for all assignments to check if they're completed
+      let submissionsMap = {};
+      try {
+        const submissionsUrl = `${window.location.origin}/api/v1/courses/${course.id}/students/submissions?student_ids[]=self&per_page=100`;
+        const submissionsResponse = await fetch(submissionsUrl, {
+          credentials: 'include',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (submissionsResponse.ok) {
+          const submissions = await submissionsResponse.json();
+          submissions.forEach(sub => {
+            // Mark as completed if submitted (workflow_state can be 'submitted', 'graded', 'pending_review')
+            if (sub.workflow_state === 'submitted' || sub.workflow_state === 'graded' || sub.workflow_state === 'pending_review') {
+              submissionsMap[sub.assignment_id] = true;
+            }
+          });
+          console.log(`[API] Found ${Object.keys(submissionsMap).length} completed assignments for ${course.name}`);
+        }
+      } catch (subError) {
+        console.log(`[API] Could not fetch submission status (this is okay):`, subError.message);
+      }
+      
       assignments.forEach((assignment, index) => {
+        // Skip if assignment is already completed/submitted
+        if (submissionsMap[assignment.id]) {
+          console.log(`[API]   ⊗ Skipping completed assignment: "${assignment.name}"`);
+          return;
+        }
+        
         // Get due date (most important)
         if (assignment.due_at) {
           const dueDate = new Date(assignment.due_at);
@@ -266,7 +262,9 @@ async function fetchAssignmentsFromAPI(course) {
               date: dueDate.toISOString(),
               title: assignment.name || 'Assignment',
               description: assignment.description ? assignment.description.substring(0, 200) : (assignment.name || 'Assignment due date'),
-              rawText: `Assignment: ${assignment.name} due: ${assignment.due_at}`
+              rawText: `Assignment: ${assignment.name} due: ${assignment.due_at}`,
+              assignmentId: assignment.id, // Store assignment ID for tracking
+              courseId: course.id
             });
             console.log(`[API]   ✓ Due date: "${assignment.name}" on ${dueDate.toLocaleDateString()}`);
           } else {
@@ -285,7 +283,9 @@ async function fetchAssignmentsFromAPI(course) {
               date: unlockDate.toISOString(),
               title: `${assignment.name || 'Assignment'} - Available`,
               description: `Assignment becomes available`,
-              rawText: `Assignment available: ${assignment.unlock_at}`
+              rawText: `Assignment available: ${assignment.unlock_at}`,
+              assignmentId: assignment.id,
+              courseId: course.id
             });
           }
         }
@@ -298,13 +298,15 @@ async function fetchAssignmentsFromAPI(course) {
               date: lockDate.toISOString(),
               title: `${assignment.name || 'Assignment'} - Locked`,
               description: `Assignment locks`,
-              rawText: `Assignment locks: ${assignment.lock_at}`
+              rawText: `Assignment locks: ${assignment.lock_at}`,
+              assignmentId: assignment.id,
+              courseId: course.id
             });
           }
         }
       });
       
-      console.log(`[API] Extracted ${dates.length} dates from ${assignments.length} assignments for ${course.name}`);
+      console.log(`[API] Extracted ${dates.length} dates from ${assignments.length} assignments for ${course.name} (filtered ${Object.keys(submissionsMap).length} completed)`);
       return dates;
     } else {
       const errorText = await response.text().catch(() => '');
@@ -332,8 +334,7 @@ async function fetchSyllabus(course) {
     
     if (!response.ok) {
       console.log(`Syllabus not accessible (${response.status}): ${syllabusUrl}`);
-      // Try assignments page as fallback (often has due dates)
-      return await fetchAssignmentsPage(course);
+      return await fetchAssignmentsPage(course); // Fallback to assignments
     }
     
     const contentType = response.headers.get('content-type') || '';
@@ -381,24 +382,13 @@ async function fetchAssignmentsPage(course) {
 }
 
 async function parsePDF(arrayBuffer) {
-  // Use PDF.js to parse PDF
   if (!pdfjsLib) {
-    // Try to access from window
-    if (typeof window !== 'undefined' && window.pdfjsLib) {
-      pdfjsLib = window.pdfjsLib;
-    } else {
-      console.error('PDF.js not available');
-      return '';
-    }
+    throw new Error('PDF.js library not loaded');
   }
   
   try {
-    // Configure PDF.js worker
-    if (pdfjsLib.GlobalWorkerOptions) {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('libs/pdf.worker.min.js');
-    }
-    
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
     let fullText = '';
     
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -411,7 +401,7 @@ async function parsePDF(arrayBuffer) {
     return fullText;
   } catch (error) {
     console.error('Error parsing PDF:', error);
-    return '';
+    throw error;
   }
 }
 
@@ -419,148 +409,91 @@ function findImportantDates(text, courseName, isPDF = false) {
   const importantDates = [];
   
   if (!text || text.length < 10) {
-    console.log(`Text too short (${text ? text.length : 0} chars) for ${courseName}`);
     return importantDates;
   }
   
   console.log(`Searching for dates in ${courseName} (${text.length} characters)`);
   
-  // Use chrono for advanced date parsing if available
-  // Note: chrono-node may not be available in browser, so we have fallback regex parsing
-  if (chrono && typeof chrono.parse === 'function') {
-    // Look for important date-related text patterns
-    const importantKeywords = [
-      // Exams and assessments
-      'final exam', 'midterm exam', 'exam', 'test', 'quiz', 'final', 'midterm', 
-      'assessment', 'examination', 'proctored exam',
-      // Assignments and projects
-      'assignment', 'homework', 'hw', 'project', 'paper', 'essay', 'report',
-      'due date', 'due', 'deadline', 'submission',
-      // Presentations and activities
-      'presentation', 'present', 'demo', 'demonstration',
-      // Other important dates
-      'lab', 'laboratory', 'workshop', 'discussion', 'recitation',
-      'drop date', 'withdrawal', 'add/drop', 'registration',
-      'holiday', 'no class', 'class cancelled', 'break'
-    ];
+  // Keywords that indicate important dates
+  const importantKeywords = [
+    'exam', 'test', 'quiz', 'midterm', 'final', 'assignment', 'homework', 'hw',
+    'project', 'paper', 'essay', 'due', 'deadline', 'submission', 'presentation',
+    'demo', 'lab', 'drop', 'holiday', 'break', 'reading day', 'study day'
+  ];
+  
+  // Date patterns
+  const patterns = [
+    // MM/DD/YYYY or MM/DD/YY
+    /\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/g,
+    // Month DD, YYYY or Month DD
+    /\b([A-Za-z]+\s+\d{1,2},?\s+\d{4})\b/g,
+    // DD Month YYYY
+    /\b(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b/g,
+    // YYYY-MM-DD (ISO format)
+    /\b(\d{4}-\d{1,2}-\d{1,2})\b/g,
+    // Day, Month DD, YYYY
+    /\b([A-Za-z]+day,?\s+[A-Za-z]+\s+\d{1,2},?\s+\d{4})\b/gi
+  ];
+  
+  // Find dates near important keywords
+  const lines = text.split(/\n/);
+  lines.forEach((line, lineIndex) => {
+    const lowerLine = line.toLowerCase();
+    const hasKeyword = importantKeywords.some(keyword => lowerLine.includes(keyword));
     
-    // Split text into sentences/lines for better context
-    const lines = text.split(/[.\n]/);
-    
-    lines.forEach(line => {
-      const lowerLine = line.toLowerCase();
-      
-      // Check if line contains important date keywords
-      const hasImportantKeyword = importantKeywords.some(keyword => lowerLine.includes(keyword));
-      
-      if (hasImportantKeyword) {
-        try {
-          // Use chrono to parse dates in this line
-          const results = chrono.parse(line, new Date());
-          
-          results.forEach(result => {
-            if (result.start) {
-              const date = result.start.date();
-              const title = extractDateTitle(line, result.text);
-              
-              importantDates.push({
-                course: courseName,
-                date: date.toISOString(),
-                title: title,
-                description: line.trim().substring(0, 200),
-                rawText: line.trim()
-              });
-            }
-          });
-        } catch (e) {
-          console.error('Error parsing with chrono:', e);
-        }
-      }
-    });
-  } else {
-    // Fallback to regex-based parsing
-    const patterns = [
-      // Exams: "Final Exam: December 15, 2024"
-      /(?:final|midterm|exam|test|quiz)\s+(?:exam|test|quiz)?\s*:?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})/gi,
-      // Exams: "Exam 1 - 10/20/2024"
-      /(?:exam|test|final|midterm|quiz)\s+\d*\s*[-–]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/gi,
-      // Dates with exams: "12/15/2024 - Final Exam"
-      /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-–]\s*(?:final|exam|test|midterm|quiz)/gi,
-      // Assignments: "Assignment 1 due: December 15, 2024"
-      /(?:assignment|homework|hw|project|paper|essay|report)\s+\d*\s*(?:due|deadline)?\s*:?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4})/gi,
-      // Assignments: "Assignment 1 - 10/20/2024"
-      /(?:assignment|homework|hw|project|paper|essay|report)\s+\d*\s*[-–]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/gi,
-      // Due dates: "Due: December 15, 2024" or "Deadline: 10/20/2024"
-      /(?:due|deadline|submission)\s*:?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/gi,
-      // Presentations: "Presentation: December 15, 2024"
-      /(?:presentation|present|demo|demonstration)\s*:?\s*([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/gi,
-      // Dates with assignments: "12/15/2024 - Assignment 1"
-      /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-–]\s*(?:assignment|homework|hw|project|paper|essay|report)/gi,
-      // General date patterns with context
-      /(?:final|exam|test|midterm|quiz|assignment|homework|hw|project|paper|essay|report|presentation|due|deadline).*?([A-Za-z]+\s+\d{1,2}(?:,?\s+\d{4})?)/gi
-    ];
-    
-    patterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        const dateStr = match[1] || match[0];
-        const parsedDate = parseDate(dateStr);
-        if (parsedDate) {
-          importantDates.push({
-            course: courseName,
-            date: parsedDate.toISOString(),
-            title: extractDateTitle(match[0]),
-            description: match[0].substring(0, 200),
-            rawText: match[0]
-          });
-          console.log(`Found date: ${extractDateTitle(match[0])} on ${parsedDate.toLocaleDateString()}`);
-        } else {
-          console.log(`Could not parse date from: "${match[0]}"`);
-        }
-      }
-    });
-    
-    // If still no dates found, try a more aggressive approach - look for any date patterns
-    if (importantDates.length === 0) {
-      console.log('No dates found with keyword matching, trying general date patterns...');
-      const generalDatePatterns = [
-        // MM/DD/YYYY or MM/DD/YY
-        /\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/g,
-        // Month DD, YYYY or Month DD
-        /\b([A-Za-z]+\s+\d{1,2},?\s+\d{4})\b/g,
-        // DD Month YYYY
-        /\b(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b/g,
-        // YYYY-MM-DD (ISO format)
-        /\b(\d{4}-\d{1,2}-\d{1,2})\b/g
-      ];
-      
-      generalDatePatterns.forEach(pattern => {
-        let match;
-        while ((match = pattern.exec(text)) !== null) {
-          const parsedDate = parseDate(match[1]);
+    if (hasKeyword) {
+      patterns.forEach(pattern => {
+        const matches = line.matchAll(pattern);
+        for (const match of matches) {
+          const dateStr = match[0];
+          const parsedDate = parseDate(dateStr);
           if (parsedDate) {
-            // Only add if it's a reasonable date (not too far in past/future)
-            const now = new Date();
-            const yearDiff = Math.abs(parsedDate.getFullYear() - now.getFullYear());
-            if (yearDiff <= 2) {
-              // Try to find context around this date
-              const contextStart = Math.max(0, match.index - 50);
-              const contextEnd = Math.min(text.length, match.index + match[0].length + 50);
-              const context = text.substring(contextStart, contextEnd);
-              
-              importantDates.push({
-                course: courseName,
-                date: parsedDate.toISOString(),
-                title: extractDateTitle(context) || 'Important Date',
-                description: context.trim().substring(0, 200),
-                rawText: context.trim()
-              });
-              console.log(`Found date (general pattern): ${parsedDate.toLocaleDateString()} in context: "${context.substring(0, 50)}"`);
-            }
+            importantDates.push({
+              course: courseName,
+              date: parsedDate.toISOString(),
+              title: extractDateTitle(line),
+              description: line.substring(0, 200),
+              rawText: line
+            });
+            console.log(`Found date: ${extractDateTitle(line)} on ${parsedDate.toLocaleDateString()}`);
           }
         }
       });
     }
+  });
+  
+  // If still no dates found, try a more aggressive approach - look for any date patterns
+  if (importantDates.length === 0) {
+    console.log('No dates found with keyword matching, trying general date patterns...');
+    const generalDatePatterns = [
+      /\b(\d{1,2}\/\d{1,2}\/\d{2,4})\b/g, // MM/DD/YYYY or MM/DD/YY
+      /\b([A-Za-z]+\s+\d{1,2},?\s+\d{4})\b/g, // Month DD, YYYY or Month DD
+      /\b(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b/g, // DD Month YYYY
+      /\b(\d{4}-\d{1,2}-\d{1,2})\b/g // YYYY-MM-DD (ISO format)
+    ];
+    
+    generalDatePatterns.forEach(pattern => {
+      const matches = text.matchAll(pattern);
+      for (const match of matches) {
+        const dateStr = match[0];
+        const parsedDate = parseDate(dateStr);
+        if (parsedDate) {
+          // Get context around the date (50 chars before and after)
+          const matchIndex = match.index;
+          const contextStart = Math.max(0, matchIndex - 50);
+          const contextEnd = Math.min(text.length, matchIndex + dateStr.length + 50);
+          const context = text.substring(contextStart, contextEnd);
+          
+          importantDates.push({
+            course: courseName,
+            date: parsedDate.toISOString(),
+            title: extractDateTitle(context, dateStr),
+            description: context,
+            rawText: context
+          });
+        }
+      }
+    });
   }
   
   console.log(`Total dates found for ${courseName}: ${importantDates.length}`);
@@ -568,50 +501,71 @@ function findImportantDates(text, courseName, isPDF = false) {
 }
 
 function extractDateTitle(text, dateText = '') {
-  // Extract title from text (exam, assignment, project, etc.)
-  const titleMatch = text.match(/(?:final|midterm|exam|test|quiz|assignment|homework|hw|project|paper|essay|report|presentation|due|deadline)\s+(\d+|[\w\s]+?)(?:\s*[-–:]|$)/i);
-  if (titleMatch) {
-    return titleMatch[1].trim();
+  // Try to extract a meaningful title from the text
+  const lines = text.split('\n').filter(l => l.trim().length > 0);
+  const firstLine = lines[0] || text;
+  
+  // Remove the date itself if present
+  let title = firstLine.replace(dateText, '').trim();
+  
+  // Clean up common prefixes
+  title = title.replace(/^(exam|test|quiz|assignment|homework|project|paper|due|deadline)[:\s]*/i, '');
+  title = title.trim();
+  
+  // If title is too short or empty, use a default
+  if (title.length < 3) {
+    return 'Important Date';
   }
   
-  // Try to get text before date
-  if (dateText) {
-    const beforeDate = text.split(dateText)[0].trim();
-    if (beforeDate.length > 0 && beforeDate.length < 50) {
-      return beforeDate;
-    }
-  }
-  
-  // Try to extract the type of event
-  const typeMatch = text.match(/(final|midterm|exam|test|quiz|assignment|homework|hw|project|paper|essay|report|presentation|due|deadline)/i);
-  if (typeMatch) {
-    return typeMatch[1].charAt(0).toUpperCase() + typeMatch[1].slice(1);
-  }
-  
-  return 'Important Date';
+  // Limit length
+  return title.substring(0, 100);
 }
 
 function parseDate(dateStr) {
-  try {
-    // Try various date formats
-    let date = new Date(dateStr);
-    
-    // If invalid, try adding current year
-    if (isNaN(date.getTime())) {
-      const currentYear = new Date().getFullYear();
-      date = new Date(dateStr + ', ' + currentYear);
+  if (!dateStr) return null;
+  
+  // Try using chrono if available
+  if (chrono && typeof chrono.parseDate === 'function') {
+    try {
+      const parsed = chrono.parseDate(dateStr);
+      if (parsed) return parsed;
+    } catch (e) {
+      // Fall through to regex parsing
     }
-    
-    // If still invalid, try with time
-    if (isNaN(date.getTime())) {
-      date = new Date(dateStr + ' 12:00 PM');
+  }
+  
+  // Fallback: regex-based parsing
+  let date = null;
+  
+  // MM/DD/YYYY or MM/DD/YY
+  if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(dateStr)) {
+    const parts = dateStr.split('/');
+    const month = parseInt(parts[0], 10) - 1;
+    const day = parseInt(parts[1], 10);
+    let year = parseInt(parts[2], 10);
+    if (year < 100) {
+      year += year < 50 ? 2000 : 1900;
     }
-    
-    if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2100) {
-      return date;
-    }
-  } catch (e) {
-    // Ignore parsing errors
+    date = new Date(year, month, day);
+  }
+  // Month DD, YYYY
+  else if (/^[A-Za-z]+\s+\d{1,2},?\s+\d{4}$/.test(dateStr)) {
+    date = new Date(dateStr);
+  }
+  // YYYY-MM-DD
+  else if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+    date = new Date(dateStr);
+  }
+  // DD Month YYYY
+  else if (/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(dateStr)) {
+    date = new Date(dateStr);
+  }
+  
+  // Validate date
+  if (date && !isNaN(date.getTime())) {
+    // Set time to noon to avoid timezone issues
+    date.setHours(12, 0, 0, 0);
+    return date;
   }
   
   return null;
