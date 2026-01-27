@@ -1,0 +1,11 @@
+{
+  "name": "canvas-exam-calendar-sync",
+  "version": "1.0.0",
+  "description": "Chrome extension to sync Canvas exam dates to calendar",
+  "scripts": {
+    "download-libs": "node download-libs.js"
+  },
+  "keywords": ["canvas", "calendar", "chrome-extension"],
+  "author": "",
+  "license": "MIT"
+}

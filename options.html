@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 30px;
+      max-width: 700px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #0374b5;
+      margin-top: 0;
+    }
+    .section {
+      margin: 25px 0;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 6px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    select, input[type="checkbox"] {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .checkbox-group label {
+      font-weight: normal;
+      margin: 0;
+      cursor: pointer;
+    }
+    button {
+      padding: 12px 24px;
+      background: #0374b5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #025a8a;
+    }
+    #status {
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 4px;
+      display: none;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .info {
+      font-size: 13px;
+      color: #666;
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .oauth-section {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 4px;
+    }
+    .oauth-section h3 {
+      margin-top: 0;
+      color: #856404;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+    }
+    ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Canvas Exam Calendar Sync - Settings</h1>
+    
+    <div class="section">
+      <label for="calendarType">Calendar Type:</label>
+      <select id="calendarType">
+        <option value="google">Google Calendar</option>
+        <option value="apple">Apple Calendar (iCal Export)</option>
+      </select>
+      <div class="info">
+        <strong>Google Calendar:</strong> Directly syncs events to your Google Calendar<br>
+        <strong>Apple Calendar:</strong> Downloads an .ics file that you can import
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="checkbox-group">
+        <input type="checkbox" id="showPreview" checked>
+        <label for="showPreview">Show preview/edit before syncing to calendar</label>
+      </div>
+      <div class="info">
+        When enabled, you'll see a preview of all extracted exam dates where you can edit, add, or delete entries before syncing to your calendar. This is recommended to ensure accuracy.
+      </div>
+    </div>
+    
+    <div class="section oauth-section" id="googleOAuthSection" style="display: none;">
+      <h3>Google Calendar Setup</h3>
+      <p>To use Google Calendar sync, you need to:</p>
+      <ol>
+        <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+        <li>Create a new project or select an existing one</li>
+        <li>Enable the Google Calendar API</li>
+        <li>Create OAuth 2.0 credentials (Web application)</li>
+        <li>Add your Client ID to <code>manifest.json</code> in the <code>oauth2.client_id</code> field</li>
+        <li>Add <code>chrome-extension://YOUR_EXTENSION_ID</code> to authorized redirect URIs</li>
+      </ol>
+      <p class="info">
+        <strong>Note:</strong> The extension will prompt you to authenticate when you first sync to Google Calendar.
+      </p>
+    </div>
+    
+    <button id="saveBtn">💾 Save Settings</button>
+    
+    <div id="status"></div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
