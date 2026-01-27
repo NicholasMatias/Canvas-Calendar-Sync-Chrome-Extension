@@ -5,9 +5,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     syncToCalendar(request.examDates).then(result => {
       sendResponse(result);
     }).catch(error => {
+      console.error('[Background] Sync error:', error);
       sendResponse({ success: false, error: error.message });
     });
     return true; // Keep channel open for async
+  }
+});
+
+// Listen for download events to provide feedback
+chrome.downloads.onCreated.addListener((downloadItem) => {
+  console.log('[Download] Started:', downloadItem.filename);
+});
+
+chrome.downloads.onChanged.addListener((downloadDelta) => {
+  if (downloadDelta.state && downloadDelta.state.current === 'complete') {
+    console.log('[Download] Completed:', downloadDelta.id);
+  } else if (downloadDelta.error) {
+    console.error('[Download] Error:', downloadDelta.error);
   }
 });
 
@@ -112,29 +126,54 @@ async function syncToGoogleCalendar(examDates) {
 
 async function syncToAppleCalendar(examDates) {
   try {
+    if (!examDates || examDates.length === 0) {
+      return { success: false, error: 'No dates to export' };
+    }
+    
     const ical = generateICal(examDates);
-    const blob = new Blob([ical], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    console.log(`[iCal] Generated iCal content (${ical.length} bytes, ${examDates.length} events)`);
+    
+    // Convert to base64 data URL (works in service workers)
+    // Use TextEncoder for proper UTF-8 encoding
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(ical);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+    const dataUrl = `data:text/calendar;charset=utf-8;base64,${base64}`;
     
     // Download iCal file
     const filename = `canvas-exams-${new Date().toISOString().split('T')[0]}.ics`;
     
-    await chrome.downloads.download({
-      url: url,
-      filename: filename,
-      saveAs: false
+    console.log(`[iCal] Starting download: ${filename}`);
+    
+    return new Promise((resolve) => {
+      chrome.downloads.download({
+        url: dataUrl,
+        filename: filename,
+        saveAs: false
+      }, (downloadId) => {
+        if (chrome.runtime.lastError) {
+          console.error('[iCal] Download error:', chrome.runtime.lastError);
+          resolve({ 
+            success: false, 
+            error: chrome.runtime.lastError.message || 'Failed to download iCal file' 
+          });
+        } else {
+          console.log(`[iCal] Download started successfully with ID: ${downloadId}`);
+          resolve({ 
+            success: true, 
+            added: examDates.length,
+            message: `Downloaded ${filename}. Import it into Apple Calendar or any calendar app.`
+          });
+        }
+      });
     });
-    
-    // Clean up after a delay
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    
-    return { 
-      success: true, 
-      added: examDates.length,
-      message: `Downloaded ${filename}. Import it into Apple Calendar or any calendar app.`
-    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('[iCal] Error:', error);
+    return { success: false, error: error.message || 'Failed to generate iCal file' };
   }
 }
 
