@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const scanBtn = document.getElementById('scanBtn');
   const extractBtn = document.getElementById('extractBtn');
   const syncBtn = document.getElementById('syncBtn');
-  const addExamBtn = document.getElementById('addExamBtn');
   const statusDiv = document.getElementById('status');
   const courseList = document.getElementById('courseList');
   const examPreview = document.getElementById('examPreview');
@@ -270,22 +269,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       showStatus('Error syncing: ' + error.message, 'error');
     } finally {
       setLoading(syncBtn, document.getElementById('syncBtnText'), false);
-    }
-  });
-  
-  addExamBtn.addEventListener('click', () => {
-    const newDate = {
-      course: 'New Course',
-      date: new Date().toISOString(),
-      title: 'Important Date',
-      description: '',
-      rawText: ''
-    };
-    importantDates.push(newDate);
-    editingIndex = importantDates.length - 1;
-    displayExamPreview();
-    if (currentView === 'calendar') {
-      renderCalendar();
     }
   });
   
