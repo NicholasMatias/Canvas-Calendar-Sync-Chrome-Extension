@@ -438,6 +438,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
   
+  // Set up day view event handlers (event delegation - only once)
+  if (dayViewEvents) {
+    dayViewEvents.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-edit-btn')) {
+        const index = parseInt(e.target.dataset.eventIndex);
+        editEventFromModal(index);
+      } else if (e.target.classList.contains('modal-delete-btn')) {
+        const index = parseInt(e.target.dataset.eventIndex);
+        deleteEventFromModal(index);
+      }
+    });
+  }
+  
   // Set up exam preview event handlers (event delegation - only once)
   if (examPreview) {
     examPreview.addEventListener('click', (e) => {
@@ -861,9 +874,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 100);
   };
   
-  // Delete event from modal
+  // Delete event from modal or day view
   function deleteEventFromModal(index) {
     if (confirm('Are you sure you want to delete this event?')) {
+      // Store the date before deleting (for refreshing the view)
+      const eventToDelete = importantDates[index];
+      const eventDate = eventToDelete ? new Date(eventToDelete.date) : currentCalendarDate;
+      
       importantDates.splice(index, 1);
       if (editingIndex === index) {
         editingIndex = null;
@@ -871,21 +888,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         editingIndex--;
       }
       
-      // Re-open modal with updated events
-      const eventDate = new Date(importantDates[index]?.date || new Date());
-      if (importantDates.length > 0 && index < importantDates.length) {
-        // If there are still events, update the modal
-        const date = new Date(eventDate);
-        openDayModal(date.getFullYear(), date.getMonth(), date.getDate());
+      // Refresh the current view
+      if (currentView === 'calendar' && currentCalendarView === 'day') {
+        // If in day view, refresh the day view
+        renderCalendar();
+      } else if (dayModal && dayModal.classList.contains('active')) {
+        // If modal is open, refresh it with remaining events for that day
+        if (importantDates.length > 0) {
+          openDayModal(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+        } else {
+          // Close modal if no events left
+          dayModal.classList.remove('active');
+        }
       } else {
-        // Close modal if no events left
-        if (dayModal) dayModal.classList.remove('active');
+        // Otherwise just refresh calendar if in calendar view
+        if (currentView === 'calendar') {
+          renderCalendar();
+        }
       }
       
       displayExamPreview();
-      if (currentView === 'calendar') {
-        renderCalendar();
-      }
       if (importantDates.length === 0) {
         if (syncBtn) syncBtn.disabled = true;
         if (previewSection) previewSection.style.display = 'none';
