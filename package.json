@@ -1,5 +1,5 @@
 {
-  "name": "canvas-exam-calendar-sync",
+  "name": "canvas-calendar-sync",
   "version": "1.0.0",
   "description": "Chrome extension to sync Canvas dates to calendar",
   "scripts": {

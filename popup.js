@@ -56,19 +56,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // Modal handlers
-  modalCloseBtn.addEventListener('click', () => {
-    dayModal.classList.remove('active');
-  });
+  if (modalCloseBtn) {
+    modalCloseBtn.addEventListener('click', () => {
+      if (dayModal) dayModal.classList.remove('active');
+    });
+  }
   
-  dayModal.addEventListener('click', (e) => {
-    if (e.target === dayModal) {
-      dayModal.classList.remove('active');
-    }
-  });
+  if (dayModal) {
+    dayModal.addEventListener('click', (e) => {
+      if (e.target === dayModal) {
+        dayModal.classList.remove('active');
+      }
+    });
+  }
   
   // Close modal on Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && dayModal.classList.contains('active')) {
+    if (e.key === 'Escape' && dayModal && dayModal.classList.contains('active')) {
       dayModal.classList.remove('active');
     }
   });
@@ -77,21 +81,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   chrome.storage.sync.get('showPreview', (result) => {
     showPreview = result.showPreview !== false; // Default to true
     if (!showPreview) {
-      previewSection.style.display = 'none';
+          if (previewSection) previewSection.style.display = 'none';
     }
   });
   
   function showStatus(message, type = 'info') {
-    statusDiv.textContent = message;
-    statusDiv.className = `status ${type}`;
-    statusDiv.style.display = 'block';
+    if (statusDiv) {
+      statusDiv.textContent = message;
+      statusDiv.className = `status ${type}`;
+      statusDiv.style.display = 'block';
+    }
   }
   
   function hideStatus() {
-    statusDiv.style.display = 'none';
+    if (statusDiv) {
+      statusDiv.style.display = 'none';
+    }
   }
   
   function setLoading(button, textElement, isLoading) {
+    if (!button || !textElement) return;
     if (isLoading) {
       button.disabled = true;
       const text = textElement.textContent.replace(/<span class="loading"><\/span>/, '');
@@ -126,14 +135,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isCanvas = await isCanvasPage(tab);
     if (!isCanvas) {
       showStatus('Please navigate to your Canvas website first (e.g., canvas.tamu.edu)', 'error');
-      scanBtn.disabled = true;
+      if (scanBtn) scanBtn.disabled = true;
     }
   });
   
-  scanBtn.addEventListener('click', async () => {
-    hideStatus();
-    setLoading(scanBtn, document.getElementById('scanBtnText'), true);
-    courseList.innerHTML = 'Scanning...';
+  if (scanBtn) {
+    scanBtn.addEventListener('click', async () => {
+      hideStatus();
+      setLoading(scanBtn, document.getElementById('scanBtnText'), true);
+      if (courseList) courseList.innerHTML = 'Scanning...';
     
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -166,26 +176,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (response.success) {
         courses = response.courses;
         if (courses.length === 0) {
-          courseList.innerHTML = 'No courses found. Make sure you\'re logged into Canvas.';
+          if (courseList) courseList.innerHTML = 'No courses found. Make sure you\'re logged into Canvas.';
           showStatus('No courses found', 'error');
         } else {
           displayCourses(courses);
-          extractBtn.disabled = false;
+          if (extractBtn) extractBtn.disabled = false;
           showStatus(`✓ Found ${courses.length} course(s)`, 'success');
         }
       } else {
-        courseList.innerHTML = 'Error scanning courses';
+        if (courseList) courseList.innerHTML = 'Error scanning courses';
         showStatus('Error: ' + response.error, 'error');
       }
     } catch (error) {
-      courseList.innerHTML = 'Error: ' + error.message;
+      if (courseList) courseList.innerHTML = 'Error: ' + error.message;
       showStatus('Error scanning courses: ' + error.message, 'error');
     } finally {
       setLoading(scanBtn, document.getElementById('scanBtnText'), false);
     }
-  });
+    });
+  }
   
-  extractBtn.addEventListener('click', async () => {
+  if (extractBtn) {
+    extractBtn.addEventListener('click', async () => {
     hideStatus();
     setLoading(extractBtn, document.getElementById('extractBtnText'), true);
     
@@ -207,20 +219,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (importantDates.length === 0) {
           showStatus('No important dates found. Check browser console (F12) for details.', 'error');
           if (shouldShowPreview) {
-            examPreview.innerHTML = `
-              <div class="no-exams">
-                <p>No important dates found in syllabi.</p>
-                <p style="font-size: 11px; color: #666; margin-top: 10px;">
-                  <strong>Tips:</strong><br>
-                  • Open browser console (F12) to see detailed logs<br>
-                  • Some syllabi may not have dates in a recognizable format<br>
-                  • Make sure you're logged into Canvas
-                </p>
-              </div>
-            `;
-            previewSection.style.display = 'block';
+            if (examPreview) {
+              examPreview.innerHTML = `
+                <div class="no-exams">
+                  <p>No important dates found in syllabi.</p>
+                  <p style="font-size: 11px; color: #666; margin-top: 10px;">
+                    <strong>Tips:</strong><br>
+                    • Open browser console (F12) to see detailed logs<br>
+                    • Some syllabi may not have dates in a recognizable format<br>
+                    • Make sure you're logged into Canvas
+                  </p>
+                </div>
+              `;
+            }
+            if (previewSection) previewSection.style.display = 'block';
           } else {
-            previewSection.style.display = 'none';
+            if (previewSection) previewSection.style.display = 'none';
           }
         } else {
           showStatus(`✓ Found ${importantDates.length} important date(s)`, 'success');
@@ -230,11 +244,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (currentView === 'calendar') {
               renderCalendar();
             }
-            previewSection.style.display = 'block';
+            if (previewSection) previewSection.style.display = 'block';
           } else {
-            previewSection.style.display = 'none';
+            if (previewSection) previewSection.style.display = 'none';
           }
-          syncBtn.disabled = false;
+          if (syncBtn) syncBtn.disabled = false;
         }
       } else {
         showStatus('Error: ' + response.error, 'error');
@@ -244,9 +258,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally {
       setLoading(extractBtn, document.getElementById('extractBtnText'), false);
     }
-  });
+    });
+  }
   
-  syncBtn.addEventListener('click', async () => {
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async () => {
     hideStatus();
     setLoading(syncBtn, document.getElementById('syncBtnText'), true);
     
@@ -258,7 +274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       if (result.success) {
         showStatus(`✓ Successfully added ${result.added} event(s) to calendar`, 'success');
-        syncBtn.disabled = true;
+        if (syncBtn) syncBtn.disabled = true;
         if (result.message) {
           showStatus(result.message, 'info');
         }
@@ -270,7 +286,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally {
       setLoading(syncBtn, document.getElementById('syncBtnText'), false);
     }
-  });
+    });
+  }
   
   // View toggle handlers
   if (listViewBtn && calendarViewBtn && listView && calendarView) {
@@ -394,44 +411,50 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // Set up calendar day click handler (event delegation - only once)
-  calendarGrid.addEventListener('click', (e) => {
-    const dayElement = e.target.closest('.calendar-day');
-    if (dayElement && !dayElement.classList.contains('other-month')) {
-      const year = parseInt(dayElement.dataset.year);
-      const month = parseInt(dayElement.dataset.month);
-      const day = parseInt(dayElement.dataset.day);
-      if (year && month !== undefined && day) {
-        openDayModal(year, month, day);
+  if (calendarGrid) {
+    calendarGrid.addEventListener('click', (e) => {
+      const dayElement = e.target.closest('.calendar-day');
+      if (dayElement && !dayElement.classList.contains('other-month')) {
+        const year = parseInt(dayElement.dataset.year);
+        const month = parseInt(dayElement.dataset.month);
+        const day = parseInt(dayElement.dataset.day);
+        if (year && month !== undefined && day) {
+          openDayModal(year, month, day);
+        }
       }
-    }
-  });
+    });
+  }
   
   // Set up modal event handlers (event delegation - only once)
-  modalEvents.addEventListener('click', (e) => {
-    if (e.target.classList.contains('modal-edit-btn')) {
-      const index = parseInt(e.target.dataset.eventIndex);
-      editEventFromModal(index);
-    } else if (e.target.classList.contains('modal-delete-btn')) {
-      const index = parseInt(e.target.dataset.eventIndex);
-      deleteEventFromModal(index);
-    }
-  });
+  if (modalEvents) {
+    modalEvents.addEventListener('click', (e) => {
+      if (e.target.classList.contains('modal-edit-btn')) {
+        const index = parseInt(e.target.dataset.eventIndex);
+        editEventFromModal(index);
+      } else if (e.target.classList.contains('modal-delete-btn')) {
+        const index = parseInt(e.target.dataset.eventIndex);
+        deleteEventFromModal(index);
+      }
+    });
+  }
   
   // Set up exam preview event handlers (event delegation - only once)
-  examPreview.addEventListener('click', (e) => {
-    if (e.target.classList.contains('exam-edit-btn')) {
-      const index = parseInt(e.target.dataset.examIndex);
-      editExam(index);
-    } else if (e.target.classList.contains('exam-delete-btn')) {
-      const index = parseInt(e.target.dataset.examIndex);
-      deleteExam(index);
-    } else if (e.target.classList.contains('exam-save-btn')) {
-      const index = parseInt(e.target.dataset.examIndex);
-      saveExam(index);
-    } else if (e.target.classList.contains('exam-cancel-btn')) {
-      cancelEdit();
-    }
-  });
+  if (examPreview) {
+    examPreview.addEventListener('click', (e) => {
+      if (e.target.classList.contains('exam-edit-btn')) {
+        const index = parseInt(e.target.dataset.examIndex);
+        editExam(index);
+      } else if (e.target.classList.contains('exam-delete-btn')) {
+        const index = parseInt(e.target.dataset.examIndex);
+        deleteExam(index);
+      } else if (e.target.classList.contains('exam-save-btn')) {
+        const index = parseInt(e.target.dataset.examIndex);
+        saveExam(index);
+      } else if (e.target.classList.contains('exam-cancel-btn')) {
+        cancelEdit();
+      }
+    });
+  }
   
   // Render calendar view
   function renderCalendar() {
@@ -775,13 +798,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       'July', 'August', 'September', 'October', 'November', 'December'];
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const dayName = dayNames[date.getDay()];
-    modalTitle.textContent = `${dayName}, ${monthNames[month]} ${day}, ${year}`;
+    if (modalTitle) {
+      modalTitle.textContent = `${dayName}, ${monthNames[month]} ${day}, ${year}`;
+    }
     
     // Display events
-    if (dayEvents.length === 0) {
-      modalEvents.innerHTML = '<div class="modal-empty">No events scheduled for this day</div>';
-    } else {
-      modalEvents.innerHTML = dayEvents.map(event => {
+    if (modalEvents) {
+      if (dayEvents.length === 0) {
+        modalEvents.innerHTML = '<div class="modal-empty">No events scheduled for this day</div>';
+      } else {
+        modalEvents.innerHTML = dayEvents.map(event => {
         const eventDate = new Date(event.date);
         const timeStr = eventDate.toLocaleTimeString('en-US', { 
           hour: 'numeric', 
@@ -806,16 +832,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
         `;
-      }).join('');
+        }).join('');
+      }
     }
     
     // Show modal
-    dayModal.classList.add('active');
+    if (dayModal) dayModal.classList.add('active');
   }
   
   // Edit event from modal
   function editEventFromModal(index) {
-    dayModal.classList.remove('active');
+    if (dayModal) dayModal.classList.remove('active');
     currentView = 'list';
     if (listViewBtn && calendarViewBtn && listView && calendarView) {
       listViewBtn.classList.add('active');
@@ -849,10 +876,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (importantDates.length > 0 && index < importantDates.length) {
         // If there are still events, update the modal
         const date = new Date(eventDate);
-        window.openDayModal(date.getFullYear(), date.getMonth(), date.getDate());
+        openDayModal(date.getFullYear(), date.getMonth(), date.getDate());
       } else {
         // Close modal if no events left
-        dayModal.classList.remove('active');
+        if (dayModal) dayModal.classList.remove('active');
       }
       
       displayExamPreview();
@@ -860,13 +887,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCalendar();
       }
       if (importantDates.length === 0) {
-        syncBtn.disabled = true;
-        previewSection.style.display = 'none';
+        if (syncBtn) syncBtn.disabled = true;
+        if (previewSection) previewSection.style.display = 'none';
       }
     }
   };
   
   function displayCourses(courses) {
+    if (!courseList) return;
     if (courses.length === 0) {
       courseList.innerHTML = 'No courses found';
       return;
@@ -877,6 +905,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   function displayExamPreview() {
+    if (!examPreview) return;
     if (importantDates.length === 0) {
       examPreview.innerHTML = '<div class="no-exams">No dates to display. Click "Extract Important Dates".</div>';
       return;
@@ -967,17 +996,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCalendar();
       }
       if (importantDates.length === 0) {
-        syncBtn.disabled = true;
-        previewSection.style.display = 'none';
+        if (syncBtn) syncBtn.disabled = true;
+        if (previewSection) previewSection.style.display = 'none';
       }
     }
   };
   
   function saveExam(index) {
-    const course = document.getElementById(`edit-course-${index}`).value.trim();
-    const title = document.getElementById(`edit-title-${index}`).value.trim();
-    const dateTime = document.getElementById(`edit-date-${index}`).value;
-    const description = document.getElementById(`edit-desc-${index}`).value.trim();
+    const courseEl = document.getElementById(`edit-course-${index}`);
+    const titleEl = document.getElementById(`edit-title-${index}`);
+    const dateTimeEl = document.getElementById(`edit-date-${index}`);
+    const descEl = document.getElementById(`edit-desc-${index}`);
+    
+    if (!courseEl || !titleEl || !dateTimeEl || !descEl) {
+      alert('Error: Form elements not found');
+      return;
+    }
+    
+    const course = courseEl.value.trim();
+    const title = titleEl.value.trim();
+    const dateTime = dateTimeEl.value;
+    const description = descEl.value.trim();
     
     if (!course) {
       alert('Course name is required');
@@ -1024,6 +1063,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initial display if we have important dates (e.g., after page reload)
   if (importantDates.length > 0 && showPreview) {
     displayExamPreview();
-    previewSection.style.display = 'block';
+          if (previewSection) previewSection.style.display = 'block';
   }
 });
