@@ -95,7 +95,6 @@ To find your extension ID: Go to `chrome://extensions/`, find the extension, and
    - Review all extracted exam dates
    - Click "Edit" to modify any exam (date, time, title, course, description)
    - Click "Delete" to remove exams you don't want
-   - Click "+ Add Manual Exam" to add exams manually
 7. Click **"3. Sync to Calendar"** - this will add them to your selected calendar
 
 ### For Google Calendar:

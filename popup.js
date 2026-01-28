@@ -215,7 +215,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                   <strong>Tips:</strong><br>
                   • Open browser console (F12) to see detailed logs<br>
                   • Some syllabi may not have dates in a recognizable format<br>
-                  • Try using "Add Manual Date" to add dates manually<br>
                   • Make sure you're logged into Canvas
                 </p>
               </div>
@@ -892,7 +891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   function displayExamPreview() {
     if (importantDates.length === 0) {
-      examPreview.innerHTML = '<div class="no-exams">No dates to display. Click "Extract Important Dates" or "Add Manual Date".</div>';
+      examPreview.innerHTML = '<div class="no-exams">No dates to display. Click "Extract Important Dates".</div>';
       return;
     }
     

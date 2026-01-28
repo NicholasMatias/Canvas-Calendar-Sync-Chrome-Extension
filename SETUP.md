@@ -87,5 +87,4 @@ If you chose Google Calendar:
 
 **Dates not extracting?**
 - Some syllabi might not have exam dates listed
-- Try manually adding exams using the "+ Add Manual Exam" button
 - Check if the syllabus is accessible
