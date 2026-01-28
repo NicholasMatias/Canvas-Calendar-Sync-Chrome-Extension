@@ -4,7 +4,7 @@ Chrome extension that automatically extracts important dates (exams, assignments
 
 ## Demo
 
-[Watch the video](CanvasCalendarSyncDemo.mov)
+[Watch the video](https://github.com/NicholasMatias/Canvas-Calendar-Sync-Chrome-Extension/CanvasCalendarSyncDemo.mov)
 
 ## Features
 
