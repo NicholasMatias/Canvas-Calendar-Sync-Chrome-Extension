@@ -276,7 +276,7 @@ function generateICal(examDates) {
   let ical = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Canvas Exam Sync//EN',
+    'PRODID:-//Canvas Calendar Sync//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH'
   ].join('\r\n') + '\r\n';

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Canvas Exam Calendar Sync",
+  "name": "Canvas Calendar Sync",
   "version": "1.0.0",
   "description": "Automatically extracts important dates (exams, assignments, deadlines, etc.) from Canvas syllabi and adds them to your calendar",
   "permissions": [

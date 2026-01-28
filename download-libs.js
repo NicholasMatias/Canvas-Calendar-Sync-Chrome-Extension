@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Script to download required libraries for Canvas Exam Calendar Sync extension
+ * Script to download required libraries for Canvas Calendar Sync extension
  * Run with: node download-libs.js
  */
 
