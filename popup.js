@@ -692,14 +692,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Build calendar grid
     let html = '';
     
-    
-    
-    // Empty cells for days before month starts
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      html += `<div class="calendar-day other-month"></div>`;
-    }
-    
-    // Days of the month
+    // Days of the month (no empty cells)
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       const dateKey = `${year}-${month}-${day}`;
@@ -712,7 +705,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-      html += `<div class="${dayClass}" data-date="${dateKey}" data-year="${year}" data-month="${month}" data-day="${day}">`;
+      // Use grid-column-start to position the first day correctly
+      const gridColumnStart = day === 1 ? startingDayOfWeek + 1 : 'auto';
+      const gridStyle = day === 1 ? `style="grid-column-start: ${gridColumnStart};"` : '';
+      
+      html += `<div class="${dayClass}" ${gridStyle} data-date="${dateKey}" data-year="${year}" data-month="${month}" data-day="${day}">`;
       html += `<div class="calendar-day-number"><span class="day-name">${dayName}</span> <span class="day-date">${day}</span></div>`;
       html += `<div class="calendar-day-events">`;
       
@@ -746,13 +743,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       html += `</div></div>`;
-    }
-    
-    // Fill remaining cells to complete the grid (next month's days)
-    const totalCells = startingDayOfWeek + daysInMonth;
-    const remainingCells = 42 - totalCells; // 6 rows * 7 days
-    for (let i = 0; i < remainingCells && i < 7; i++) {
-      html += `<div class="calendar-day other-month"></div>`;
     }
     
     calendarGrid.innerHTML = html;
